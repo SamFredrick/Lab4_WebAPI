@@ -28,7 +28,8 @@ const MovieSchema = new Schema({
   actors: [{
     actorName: { type: String, required: true },
     characterName: { type: String, required: true }
-  }]
+  }],
+  imageUrl: String
 });
 
 MovieSchema.path('actors').validate(function(actors) {

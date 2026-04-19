@@ -1,7 +1,7 @@
-require('dotenv').config({ path: __dirname + '/.env' });var express = require('express');
+require('dotenv').config({ path: __dirname + '/.env' });
+var express = require('express');
 console.log("SECRET_KEY =", process.env.SECRET_KEY);
 console.log("DB =", process.env.DB);
-
 
 var bodyParser = require('body-parser');
 var passport = require('passport');
@@ -66,6 +66,26 @@ router.post('/signin', async (req, res) => {
 router.route('/movies')
   .get(authJwtController.isAuthenticated, async (req, res) => {
     try {
+      if (req.query.reviews === 'true') {
+        const aggregate = [
+          {
+            $lookup: {
+              from: 'reviews',
+              localField: '_id',
+              foreignField: 'movieId',
+              as: 'movieReviews'
+            }
+          },
+          {
+            $addFields: {
+              avgRating: { $avg: '$movieReviews.rating' }
+            }
+          },
+          { $sort: { avgRating: -1 } }
+        ];
+        const movies = await Movie.aggregate(aggregate);
+        return res.json({ success: true, movies });
+      }
       const movies = await Movie.find();
       res.json({ success: true, movies });
     } catch (err) {
@@ -73,12 +93,12 @@ router.route('/movies')
     }
   })
   .post(authJwtController.isAuthenticated, async (req, res) => {
-    const { title, releaseDate, genre, actors } = req.body;
+    const { title, releaseDate, genre, actors, imageUrl } = req.body;
     if (!title || !releaseDate || !genre || !actors || actors.length === 0) {
       return res.status(400).json({ success: false, message: 'Missing required movie information.' });
     }
     try {
-      const movie = new Movie({ title, releaseDate, genre, actors });
+      const movie = new Movie({ title, releaseDate, genre, actors, imageUrl });
       await movie.save();
       res.status(201).json({ success: true, message: 'Movie saved.', movie });
     } catch (err) {
@@ -96,7 +116,6 @@ router.route('/movies')
 router.route('/movies/:movieparameter')
   .get(authJwtController.isAuthenticated, async (req, res) => {
     try {
-      // If ?reviews=true, aggregate with reviews
       if (req.query.reviews === 'true') {
         const movie = await Movie.findOne({ title: req.params.movieparameter });
         if (!movie) return res.status(404).json({ success: false, message: 'Movie not found.' });
@@ -110,12 +129,16 @@ router.route('/movies/:movieparameter')
               foreignField: 'movieId',
               as: 'reviews'
             }
+          },
+          {
+            $addFields: {
+              avgRating: { $avg: '$reviews.rating' }
+            }
           }
         ]);
         return res.json({ success: true, movie: result[0] });
       }
 
-      // Regular get without reviews
       const movie = await Movie.findOne({ title: req.params.movieparameter });
       if (!movie) return res.status(404).json({ success: false, message: 'Movie not found.' });
       res.json({ success: true, movie });
@@ -160,14 +183,16 @@ router.route('/reviews')
     }
   })
   .post(authJwtController.isAuthenticated, async (req, res) => {
-    const { movieId, username, review, rating } = req.body;
-    if (!movieId || !username || !review || rating === undefined) {
+    const { movieId, review, rating } = req.body;
+    if (!movieId || !review || rating === undefined) {
       return res.status(400).json({ success: false, message: 'Missing required review information.' });
     }
     try {
-      // Check movie exists
       const movie = await Movie.findById(movieId);
       if (!movie) return res.status(404).json({ success: false, message: 'Movie not found.' });
+
+      // Get username from JWT token instead of request body
+      const username = req.jwt.username;
 
       const newReview = new Review({ movieId, username, review, rating });
       await newReview.save();
