@@ -191,8 +191,8 @@ router.route('/reviews')
       const movie = await Movie.findById(movieId);
       if (!movie) return res.status(404).json({ success: false, message: 'Movie not found.' });
 
-      // Get username from JWT token instead of request body
-      const username = req.jwt.username;
+      const decoded = jwt.verify(req.headers.authorization.replace('JWT ', ''), process.env.SECRET_KEY);
+      const username = decoded.username;
 
       const newReview = new Review({ movieId, username, review, rating });
       await newReview.save();
