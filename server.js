@@ -117,7 +117,12 @@ router.route('/movies/:movieparameter')
   .get(authJwtController.isAuthenticated, async (req, res) => {
     try {
       if (req.query.reviews === 'true') {
-        const movie = await Movie.findOne({ title: req.params.movieparameter });
+        let movie = null;
+        if (mongoose.Types.ObjectId.isValid(req.params.movieparameter)) {
+          movie = await Movie.findById(req.params.movieparameter);
+        } else {
+          movie = await Movie.findOne({ title: req.params.movieparameter });
+        }
         if (!movie) return res.status(404).json({ success: false, message: 'Movie not found.' });
 
         const result = await Movie.aggregate([
@@ -139,7 +144,12 @@ router.route('/movies/:movieparameter')
         return res.json({ success: true, movie: result[0] });
       }
 
-      const movie = await Movie.findOne({ title: req.params.movieparameter });
+      let movie = null;
+      if (mongoose.Types.ObjectId.isValid(req.params.movieparameter)) {
+        movie = await Movie.findById(req.params.movieparameter);
+      } else {
+        movie = await Movie.findOne({ title: req.params.movieparameter });
+      }
       if (!movie) return res.status(404).json({ success: false, message: 'Movie not found.' });
       res.json({ success: true, movie });
     } catch (err) {
